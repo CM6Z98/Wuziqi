@@ -1,0 +1,567 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>五子棋对战游戏</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.4.7/peerjs.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        
+        .game-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 600px;
+        }
+        
+        .connection-panel {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            width: 100%;
+        }
+        
+        .game-status {
+            background-color: #fff;
+            border-radius: 8px;
+            padding: 15px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+            width: 100%;
+            text-align: center;
+            font-weight: bold;
+            font-size: 18px;
+        }
+        
+        .board-container {
+            position: relative;
+            margin-top: 10px;
+        }
+        
+        .board {
+            background-color: #e6c88e;
+            border-radius: 4px;
+            box-shadow: 0 0 15px rgba(0, 0, 0, 0.2);
+            display: grid;
+        }
+        
+        .cell {
+            position: relative;
+            width: 35px;
+            height: 35px;
+            border: 1px solid rgba(0, 0, 0, 0.3);
+            cursor: pointer;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .cell::before, .cell::after {
+            content: "";
+            position: absolute;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+        
+        .cell::before {
+            width: 100%;
+            height: 1px;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+        
+        .cell::after {
+            width: 1px;
+            height: 100%;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+        
+        .stone {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            position: absolute;
+            z-index: 1;
+        }
+        
+        .black {
+            background: radial-gradient(circle at 30% 30%, #666, #000);
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+        }
+        
+        .white {
+            background: radial-gradient(circle at 30% 30%, #fff, #ccc);
+            box-shadow: 1px 1px 3px rgba(0, 0, 0, 0.6);
+        }
+        
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 10px 5px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: background-color 0.3s;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        
+        input {
+            padding: 10px;
+            margin: 5px 0;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 100%;
+        }
+        
+        .input-group {
+            margin-bottom: 15px;
+            width: 100%;
+        }
+        
+        .input-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        .instruction {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #fff;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 100%;
+        }
+        
+        .instruction h2 {
+            font-size: 18px;
+            margin-bottom: 10px;
+            color: #333;
+        }
+        
+        .instruction p, .instruction li {
+            margin-bottom: 8px;
+            line-height: 1.5;
+        }
+        
+        .instruction ul {
+            padding-left: 20px;
+        }
+    </style>
+</head>
+<body>
+    <h1>五子棋对战游戏</h1>
+    
+    <div class="game-container">
+        <div class="connection-panel" id="connectionPanel">
+            <div class="input-group">
+                <label for="peerId">你的游戏ID:</label>
+                <input type="text" id="peerId" placeholder="自动生成或输入自定义ID" readonly>
+                <button id="copyIdBtn">复制ID</button>
+            </div>
+            
+            <div class="input-group">
+                <label for="connectToId">连接至对手ID:</label>
+                <input type="text" id="connectToId" placeholder="输入对手的游戏ID">
+                <button id="connectBtn">连接对手</button>
+            </div>
+            
+            <div id="connectionStatus">未连接</div>
+        </div>
+        
+        <div class="game-status" id="gameStatus">等待连接...</div>
+        
+        <div class="board-container">
+            <div class="board" id="board"></div>
+        </div>
+        
+        <div class="action-buttons">
+            <button id="restartBtn" disabled>重新开始</button>
+            <button id="resignBtn" disabled>认输</button>
+        </div>
+        
+        <div class="instruction">
+            <h2>使用说明</h2>
+            <p>五子棋规则:先把五颗棋子连成一线(横、直、斜)的一方获胜。</p>
+            <h3>如何开始游戏:</h3>
+            <ol>
+                <li>系统会自动生成你的游戏ID，或者你可以输入自定义ID。</li>
+                <li>将你的游戏ID分享给对手。</li>
+                <li>对手输入你的ID并点击"连接对手"，或者你输入对手的ID并点击"连接对手"。</li>
+                <li>连接成功后，游戏自动开始。黑方先行。</li>
+            </ol>
+            <p>注意: 这是一个点对点的游戏，你的游戏数据不会存储在任何服务器上。</p>
+        </div>
+    </div>
+
+    <script>
+        // 游戏配置
+        const BOARD_SIZE = 15; // 15x15 的棋盘
+        const WINNING_LENGTH = 5; // 五子连珠获胜
+        
+        // 游戏状态
+        let gameState = {
+            board: Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null)),
+            currentPlayer: 'black', // 黑方先行
+            gameOver: false,
+            myColor: null,
+            myTurn: false
+        };
+        
+        // DOM 元素
+        const boardElement = document.getElementById('board');
+        const gameStatusElement = document.getElementById('gameStatus');
+        const peerIdInput = document.getElementById('peerId');
+        const connectToIdInput = document.getElementById('connectToId');
+        const connectBtn = document.getElementById('connectBtn');
+        const copyIdBtn = document.getElementById('copyIdBtn');
+        const connectionStatusElement = document.getElementById('connectionStatus');
+        const restartBtn = document.getElementById('restartBtn');
+        const resignBtn = document.getElementById('resignBtn');
+        
+        // 初始化 PeerJS
+        let peer;
+        let conn;
+        let isHost = false;
+        
+        // 初始化游戏
+        function initGame() {
+            // 设置棋盘网格
+            boardElement.style.gridTemplateColumns = `repeat(${BOARD_SIZE}, 35px)`;
+            boardElement.style.gridTemplateRows = `repeat(${BOARD_SIZE}, 35px)`;
+            
+            // 创建棋盘单元格
+            for (let i = 0; i < BOARD_SIZE; i++) {
+                for (let j = 0; j < BOARD_SIZE; j++) {
+                    const cell = document.createElement('div');
+                    cell.className = 'cell';
+                    cell.dataset.row = i;
+                    cell.dataset.col = j;
+                    cell.addEventListener('click', handleCellClick);
+                    boardElement.appendChild(cell);
+                }
+            }
+            
+            // 创建 PeerJS 实例
+            peer = new Peer(null, {
+                debug: 2
+            });
+            
+            peer.on('open', (id) => {
+                peerIdInput.value = id;
+                connectionStatusElement.textContent = '已准备好连接';
+            });
+            
+            peer.on('connection', (connection) => {
+                conn = connection;
+                isHost = true;
+                gameState.myColor = 'black'; // 主机是黑方
+                gameState.myTurn = true;
+                setupConnection();
+            });
+            
+            peer.on('error', (err) => {
+                console.error('PeerJS error:', err);
+                connectionStatusElement.textContent = `连接错误: ${err.type}`;
+            });
+            
+            // 设置按钮事件
+            connectBtn.addEventListener('click', connectToPeer);
+            copyIdBtn.addEventListener('click', copyPeerId);
+            restartBtn.addEventListener('click', requestRestart);
+            resignBtn.addEventListener('click', resignGame);
+            
+            updateGameStatus();
+        }
+        
+        // 连接到对手
+        function connectToPeer() {
+            const peerId = connectToIdInput.value.trim();
+            if (!peerId) {
+                alert('请输入对手的游戏ID');
+                return;
+            }
+            
+            connectionStatusElement.textContent = '正在连接...';
+            conn = peer.connect(peerId);
+            isHost = false;
+            gameState.myColor = 'white'; // 客户端是白方
+            gameState.myTurn = false;
+            setupConnection();
+        }
+        
+        // 设置连接
+        function setupConnection() {
+            conn.on('open', () => {
+                connectionStatusElement.textContent = '已连接';
+                connectBtn.disabled = true;
+                restartBtn.disabled = false;
+                resignBtn.disabled = false;
+                
+                updateGameStatus();
+            });
+            
+            conn.on('data', handleMessage);
+            
+            conn.on('close', () => {
+                connectionStatusElement.textContent = '连接已关闭';
+                gameState.gameOver = true;
+                updateGameStatus();
+                restartBtn.disabled = true;
+                resignBtn.disabled = true;
+                connectBtn.disabled = false;
+            });
+            
+            conn.on('error', (err) => {
+                console.error('Connection error:', err);
+                connectionStatusElement.textContent = `连接错误: ${err}`;
+            });
+        }
+        
+        // 处理接收到的消息
+        function handleMessage(data) {
+            if (data.type === 'move') {
+                makeMove(data.row, data.col, data.color);
+                gameState.currentPlayer = gameState.myColor;
+                gameState.myTurn = true;
+                updateGameStatus();
+            } else if (data.type === 'restart-request') {
+                if (confirm('对手请求重新开始游戏。接受？')) {
+                    resetGame();
+                    sendMessage({ type: 'restart-accepted' });
+                } else {
+                    sendMessage({ type: 'restart-rejected' });
+                }
+            } else if (data.type === 'restart-accepted') {
+                resetGame();
+                alert('对手接受了重新开始游戏的请求。');
+            } else if (data.type === 'restart-rejected') {
+                alert('对手拒绝了重新开始游戏的请求。');
+            } else if (data.type === 'resign') {
+                gameState.gameOver = true;
+                alert('对手认输了！你赢了！');
+                updateGameStatus();
+            }
+        }
+        
+        // 发送消息
+        function sendMessage(message) {
+            if (conn && conn.open) {
+                conn.send(message);
+            }
+        }
+        
+        // 处理棋盘点击事件
+        function handleCellClick(event) {
+            if (gameState.gameOver || !gameState.myTurn) return;
+            
+            const row = parseInt(event.target.dataset.row);
+            const col = parseInt(event.target.dataset.col);
+            
+            if (gameState.board[row][col]) return; // 已有棋子的位置
+            
+            makeMove(row, col, gameState.myColor);
+            sendMessage({
+                type: 'move',
+                row: row,
+                col: col,
+                color: gameState.myColor
+            });
+            
+            gameState.currentPlayer = gameState.myColor === 'black' ? 'white' : 'black';
+            gameState.myTurn = false;
+            
+            updateGameStatus();
+        }
+        
+        // 在棋盘上落子
+        function makeMove(row, col, color) {
+            gameState.board[row][col] = color;
+            
+            const stone = document.createElement('div');
+            stone.className = `stone ${color}`;
+            
+            const cell = boardElement.children[row * BOARD_SIZE + col];
+            cell.appendChild(stone);
+            
+            // 检查是否获胜
+            if (checkWin(row, col, color)) {
+                gameState.gameOver = true;
+                updateGameStatus();
+            }
+        }
+        
+        // 检查是否获胜
+        function checkWin(row, col, color) {
+            const directions = [
+                [0, 1],   // 水平
+                [1, 0],   // 垂直
+                [1, 1],   // 对角线 /
+                [1, -1]   // 对角线 \
+            ];
+            
+            for (const [dx, dy] of directions) {
+                let count = 1; // 当前位置的棋子
+                
+                // 正向检查
+                for (let i = 1; i < WINNING_LENGTH; i++) {
+                    const newRow = row + i * dx;
+                    const newCol = col + i * dy;
+                    
+                    if (
+                        newRow >= 0 && newRow < BOARD_SIZE &&
+                        newCol >= 0 && newCol < BOARD_SIZE &&
+                        gameState.board[newRow][newCol] === color
+                    ) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                // 反向检查
+                for (let i = 1; i < WINNING_LENGTH; i++) {
+                    const newRow = row - i * dx;
+                    const newCol = col - i * dy;
+                    
+                    if (
+                        newRow >= 0 && newRow < BOARD_SIZE &&
+                        newCol >= 0 && newCol < BOARD_SIZE &&
+                        gameState.board[newRow][newCol] === color
+                    ) {
+                        count++;
+                    } else {
+                        break;
+                    }
+                }
+                
+                if (count >= WINNING_LENGTH) {
+                    return true;
+                }
+            }
+            
+            return false;
+        }
+        
+        // 更新游戏状态显示
+        function updateGameStatus() {
+            if (!conn || !conn.open) {
+                gameStatusElement.textContent = '等待连接...';
+                return;
+            }
+            
+            if (gameState.gameOver) {
+                if (gameState.myTurn) {
+                    gameStatusElement.textContent = '游戏结束 - 你赢了！';
+                } else {
+                    gameStatusElement.textContent = '游戏结束 - 对手赢了！';
+                }
+                return;
+            }
+            
+            if (gameState.myTurn) {
+                gameStatusElement.textContent = `轮到你下棋 (${gameState.myColor === 'black' ? '黑子' : '白子'})`;
+            } else {
+                gameStatusElement.textContent = '等待对手...';
+            }
+        }
+        
+        // 请求重新开始游戏
+        function requestRestart() {
+            if (confirm('确定要请求重新开始游戏吗？')) {
+                sendMessage({ type: 'restart-request' });
+            }
+        }
+        
+        // 认输
+        function resignGame() {
+            if (confirm('确定要认输吗？')) {
+                gameState.gameOver = true;
+                sendMessage({ type: 'resign' });
+                updateGameStatus();
+                alert('你已认输。');
+            }
+        }
+        
+        // 重置游戏
+        function resetGame() {
+            // 清除棋盘
+            gameState.board = Array(BOARD_SIZE).fill().map(() => Array(BOARD_SIZE).fill(null));
+            gameState.gameOver = false;
+            
+            // 移除所有棋子
+            const stones = document.querySelectorAll('.stone');
+            stones.forEach(stone => stone.remove());
+            
+            // 重置游戏状态
+            if (isHost) {
+                gameState.currentPlayer = 'black';
+                gameState.myTurn = true;
+            } else {
+                gameState.currentPlayer = 'black';
+                gameState.myTurn = false;
+            }
+            
+            updateGameStatus();
+        }
+        
+        // 复制PeerID到剪贴板
+        function copyPeerId() {
+            peerIdInput.select();
+            document.execCommand('copy');
+            alert('游戏ID已复制到剪贴板');
+        }
+        
+        // 初始化游戏
+        window.onload = initGame;
+    </script>
+</body>
+</html>
